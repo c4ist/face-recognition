@@ -35,7 +35,3 @@ python cli.py analyze-images --input-path samples/images --db-path data/faces.db
 python cli.py analyze-video --video-path samples/video.mp4 --db-path data/faces.db --output-dir runs/video --frame-step 5 --annotate-frames
 ```
 
-## Output
-
-- Annotated images/frames in `runs/.../annotated_*`
-- Limited reports only: `results.csv`, `results.json`, `summary.json`
