@@ -1,6 +1,8 @@
 # face-recognition 
 this is pretty self explanatory but since i do want this software to be open source i do want a good bit of contribution IF possible, if you see anything directly wrong with the code let me know and ill try my best to fix it, pull requests are kinda okay but usually ill just pick and choose what i want from them 
 
+also side note: video is really bad and didnt work for me, let me know if it works for you 
+
 
 ## start 
 
