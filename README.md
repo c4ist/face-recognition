@@ -11,7 +11,7 @@ pip install -r requirements.txt
 python cli.py --help
 ```
 
-## 1) add some faces, this can be bob or alice or elon,  we already have elon but no bob and alice so feel free to introduce them 
+## 1) again self explanatory you need images to feed on, they can be named whatever as long as naming is within the right folder 
 
 ```text
 known/
