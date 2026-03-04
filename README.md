@@ -8,9 +8,8 @@ also side note: video is really bad and didnt work for me, let me know if it wor
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\activate
 pip install -r requirements.txt
-python cli.py --help
+python cli.py (at #3) 
 ```
 
 ## 1) again self explanatory you need images to feed on, they can be named whatever as long as naming is within the right folder 
