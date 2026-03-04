@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-# pretty self explanatory but essentially this is the config for the face engine
+# pretty self explanatory 
 @dataclass
 class EngineConfig:
     model_name: str = "buffalo_l"
