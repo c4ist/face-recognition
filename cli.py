@@ -29,6 +29,27 @@ def _face_score(value: str) -> float:
     return parsed
 
 
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("Value must be a non-negative integer.")
+    return parsed
+
+
+def _positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0.0:
+        raise argparse.ArgumentTypeError("Value must be greater than 0.")
+    return parsed
+
+
+def _screen_scale(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0.0 or parsed > 1.0:
+        raise argparse.ArgumentTypeError("Screen scale must be > 0.0 and <= 1.0.")
+    return parsed
+
+
 def _raise_missing_dependency(exc: ModuleNotFoundError) -> None:
     package = exc.name or "a required package"
     raise SystemExit(
@@ -285,6 +306,117 @@ def analyze_images_command(args: argparse.Namespace) -> None:
     print(f"- reports: {output_dir.resolve()}")
 
 
+def scan_screen_command(args: argparse.Namespace) -> None:
+    try:
+        import time
+
+        import cv2
+        import mss
+        import numpy as np
+
+        from facerec.db import connect_db, initialize_db, load_known_embeddings
+        from facerec.engine import FaceEngine
+        from facerec.io import draw_face_annotation
+        from facerec.matching import EmbeddingMatcher
+    except ModuleNotFoundError as exc:
+        _raise_missing_dependency(exc)
+
+    conn = connect_db(args.db_path)
+    try:
+        initialize_db(conn)
+        known_embeddings = load_known_embeddings(conn)
+    finally:
+        conn.close()
+
+    if not known_embeddings:
+        raise SystemExit("No embeddings found in database. Run enroll first.")
+
+    matcher = EmbeddingMatcher(known_embeddings)
+    engine = FaceEngine(_engine_config_from_args(args))
+
+    window_name = "Face Recognition - Screen Scan"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    scale = float(args.capture_scale)
+    frame_delay = 1.0 / float(args.max_fps)
+
+    with mss.mss() as screen_capture:
+        monitors = screen_capture.monitors
+        if args.monitor >= len(monitors):
+            raise SystemExit(
+                f"Monitor index {args.monitor} is out of range. Available monitor indices: 0-{len(monitors) - 1}"
+            )
+
+        monitor_region = monitors[args.monitor]
+        print("Live screen scan started. Press 'q' or ESC in the preview window to quit.")
+
+        while True:
+            loop_start = time.perf_counter()
+
+            captured = screen_capture.grab(monitor_region)
+            frame_bgra = np.asarray(captured, dtype=np.uint8)
+            frame_bgr = cv2.cvtColor(frame_bgra, cv2.COLOR_BGRA2BGR)
+
+            detection_frame = frame_bgr
+            if scale < 1.0:
+                detection_frame = cv2.resize(
+                    frame_bgr,
+                    dsize=None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_LINEAR,
+                )
+
+            faces = engine.detect_faces(detection_frame)
+
+            for face in faces:
+                scaled_bbox = face.bbox
+                if scale < 1.0:
+                    scaled_bbox = tuple(float(value) / scale for value in face.bbox)
+
+                match = matcher.match(face.embedding, threshold=args.threshold)
+                draw_face_annotation(
+                    frame_bgr,
+                    scaled_bbox,
+                    _format_label(match.name, match.confidence),
+                    match.is_unknown,
+                )
+
+            status = f"faces={len(faces)} monitor={args.monitor} scale={scale:.2f}"
+            cv2.putText(
+                frame_bgr,
+                status,
+                (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                frame_bgr,
+                "press q or ESC to quit",
+                (10, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+            cv2.imshow(window_name, frame_bgr)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
+                break
+
+            elapsed = time.perf_counter() - loop_start
+            sleep_for = frame_delay - elapsed
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+
+    cv2.destroyAllWindows()
+
+
 def analyze_video_command(args: argparse.Namespace) -> None:
     try:
         import cv2
@@ -469,6 +601,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_engine_args(analyze_video)
     analyze_video.set_defaults(func=analyze_video_command)
+
+    scan_screen = subparsers.add_parser(
+        "scan-screen",
+        help="Live scan your desktop screen and annotate recognized faces.",
+    )
+    scan_screen.add_argument("--db-path", default="data/faces.db", help="SQLite DB path.")
+    scan_screen.add_argument(
+        "--threshold",
+        type=_confidence_threshold,
+        default=0.45,
+        help="Cosine similarity threshold for known/unknown decision.",
+    )
+    scan_screen.add_argument(
+        "--monitor",
+        type=_non_negative_int,
+        default=1,
+        help="Monitor index for screen capture (1 is usually your primary monitor, 0 is all monitors).",
+    )
+    scan_screen.add_argument(
+        "--capture-scale",
+        type=_screen_scale,
+        default=0.5,
+        help="Scale factor for detection (lower is faster, range: 0.0-1.0].",
+    )
+    scan_screen.add_argument(
+        "--max-fps",
+        type=_positive_float,
+        default=8.0,
+        help="Maximum preview/update rate.",
+    )
+    _add_common_engine_args(scan_screen)
+    scan_screen.set_defaults(func=scan_screen_command)
 
     return parser
 

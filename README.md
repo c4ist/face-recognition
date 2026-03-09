@@ -33,9 +33,6 @@ python cli.py enroll --known-dir known --db-path data/faces.db
 ```powershell
 python cli.py analyze-images --input-path samples/images --db-path data/faces.db --output-dir runs/images --annotate
 python cli.py analyze-video --video-path samples/video.mp4 --db-path data/faces.db --output-dir runs/video --frame-step 5 --annotate-frames
+python cli.py scan-screen --db-path data/faces.db --monitor 1 --capture-scale 0.5 --max-fps 8 --threshold 0.45
 ```
 
-## Output
-
-- Annotated images/frames in `runs/.../annotated_*`
-- Limited reports only: `results.csv`, `results.json`, `summary.json`
